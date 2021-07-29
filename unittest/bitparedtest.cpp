@@ -58,3 +58,54 @@ TEST(BitParEDTest, GlobalAlignment)
     EXPECT_EQ(CIGAR[3].first, 'I'); EXPECT_EQ(CIGAR[3].second, 1);
     EXPECT_EQ(CIGAR[4].first, 'M'); EXPECT_EQ(CIGAR[4].second, 2);
 }
+
+TEST(BitParEDTest, BackTracking)
+{
+    ifstream ifs("input.aln");
+    if (!ifs) {
+        cerr << "Cannot open file: input.aln. Unittests were not executed.\n";
+        EXPECT_EQ(bool(ifs), true);
+        return;
+    }
+
+    BitParallelED myBPED;
+    while (ifs) {
+        const uint maxED = 10;
+        string X, Y, trueCIGAR; uint trueED;
+        ifs >> X >> Y >> trueED >> trueCIGAR;
+
+        if (!ifs)
+            break;
+
+        myBPED.setSequence(X);
+        myBPED.initializeMatrix(maxED);
+
+        bool alignmentCompleted = true;
+        for (uint i = 1; i <= Y.size(); i++) {
+            alignmentCompleted = myBPED.computeRow(i, Y[i-1]);
+            if (!alignmentCompleted)
+                break;
+        }
+
+        if (!alignmentCompleted) {
+            EXPECT_EQ((trueED > maxED), true);
+            continue;
+        }
+
+        uint score = myBPED(Y.size(), X.size());    // get score
+        EXPECT_EQ(score, trueED);
+
+        // CIGAR string computation
+        vector<pair<char, uint> > CIGARv;
+        uint refBegin, refEnd;
+        myBPED.trackBack(Y, refBegin, refEnd, score, CIGARv);
+
+        string CIGAR;
+        for (auto it : CIGARv) {
+            CIGAR.append(to_string(it.second));
+            CIGAR.push_back(it.first);
+        }
+
+        EXPECT_EQ(CIGAR, trueCIGAR);
+    }
+}
