@@ -15,18 +15,17 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.     *
  ******************************************************************************/
 
-#include <cstdlib>
-#include <iostream>
-#include <chrono>
 #include <algorithm>
 #include <bitset>
+#include <chrono>
+#include <cstdlib>
+#include <iostream>
 
 #include "bitpared.h"
 
 using namespace std;
 
-int main()
-{
+int main() {
     // AAACCCGGGTATTT-AT
     //     *
     // AAACAC-GGTATTTAAT
@@ -35,12 +34,11 @@ int main()
 
     // basic global alignment demo
     BitParallelED myBPED;
-    myBPED.setSequence(X);                      // set and bit-encode sequence X
-    myBPED.initializeMatrix(4);                 // initialize matrix with maxED
-    for (uint i = 1; i <= Y.size(); i++)        // compute all rows
-        if (!myBPED.computeRow(i, Y[i-1]))
-            break;
-    uint score = myBPED(Y.size(), X.size());    // get score
+    myBPED.setSequence(X);                // set and bit-encode sequence X
+    myBPED.initializeMatrix(4);           // initialize matrix with maxED
+    for (uint i = 1; i <= Y.size(); i++)  // compute all rows
+        if (!myBPED.computeRow(i, Y[i - 1])) break;
+    uint score = myBPED(Y.size(), X.size());  // get score
 
     // CIGAR string computation
     vector<pair<char, uint> > CIGAR;
@@ -51,8 +49,29 @@ int main()
     cout << "Edit distance score: " << score << endl;
     cout << "CIGAR string: ";
 
-    for (uint i = 0; i < CIGAR.size(); i++)
-        cout << CIGAR[i].first << CIGAR[i].second;
+    for (uint i = 0; i < CIGAR.size(); i++) cout << CIGAR[i].first << CIGAR[i].second;
+    cout << endl;
+
+    // in text validation
+    BitParallelED myBPED2;
+    string ref =
+        "TCTGGAAGTGGACATTTGGAGCGCCTTGACACCTACGGTGAAAAAGGGAAATATCTTCCCATAAAAACTAGACAGAAGGAATCTCAGAATCTTCTTTGGGATATA";
+    string Q = "GAAGTGGACATTTGGAGCGCCTTGACACCTACGGTGAAAAGGGAAATATCTTCCCATAAAAACTAGACAGAAGCAATCTCAGAATCTTCTTTGGGATATA";
+
+    myBPED2.setSequence(ref);
+    myBPED2.initInTextValidation(4);
+
+    for (unsigned int i = 0; i < Q.size(); i++) {
+        myBPED2.computeRow(i + 1, Q[i]);
+    }
+
+    myBPED2.trackBack(Q, refBegin, refEnd, score, CIGAR);
+
+    cout << "Ref. seq.:\t" << ref.substr(refBegin, refEnd - refBegin) << "\nQuery seq.:\t" << Q << "\n";
+    cout << "Edit distance score: " << score << endl;
+    cout << "CIGAR string: ";
+
+    for (uint i = 0; i < CIGAR.size(); i++) cout << CIGAR[i].first << CIGAR[i].second;
     cout << endl;
 
     return EXIT_SUCCESS;
