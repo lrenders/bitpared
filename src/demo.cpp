@@ -53,19 +53,41 @@ int main() {
     cout << endl;
 
     // in text validation
-    BitParallelED myBPED2;
-    string ref =
-        "TCTGGAAGTGGACATTTGGAGCGCCTTGACACCTACGGTGAAAAAGGGAAATATCTTCCCATAAAAACTAGACAGAAGGAATCTCAGAATCTTCTTTGGGATATA";
-    string Q = "GAAGTGGACATTTGGAGCGCCTTGACACCTACGGTGAAAAGGGAAATATCTTCCCATAAAAACTAGACAGAAGCAATCTCAGAATCTTCTTTGGGATATA";
 
-    myBPED2.setSequence(ref);
-    myBPED2.initInTextValidation(4);
+    string ref = "TCTTTCTGTGGAATCTGCAAGTGGATATTTGGATAGCTTGGAGGATTTCGTTGGAAACGGGATTACGTATAAAAAGTAGACAGCAGCATCCTCAGAAACT";
+    string Q = "GTCTTTCTGTGGAATATGCAAGTGGATATTTGGATAGCTTGGAGGATTTCGTTGGAAACGGGATTACGCATAAAAAGTAGACAGCAGCATCCTCAGTAAA";
+
+    myBPED.setSequence(ref);
+    myBPED.initInTextValidation(4);
 
     for (unsigned int i = 0; i < Q.size(); i++) {
-        myBPED2.computeRow(i + 1, Q[i]);
+        myBPED.computeRow(i + 1, Q[i]);
     }
 
-    myBPED2.trackBack(Q, refBegin, refEnd, score, CIGAR);
+    myBPED.trackBack(Q, refBegin, refEnd, score, CIGAR);
+
+    cout << "Begin: " << refBegin << "\tEnd: " << refEnd << endl;
+
+    cout << "Ref. seq.:\t" << ref.substr(refBegin, refEnd - refBegin) << "\nQuery seq.:\t" << Q << "\n";
+    cout << "Edit distance score: " << score << endl;
+    cout << "CIGAR string: ";
+
+    for (uint i = 0; i < CIGAR.size(); i++) cout << CIGAR[i].first << CIGAR[i].second;
+    cout << endl;
+
+    ref = "TCTGGAAGTGGACATTTGGAGCGCCTTGACACCTACGGTGAAAAAGGGAAATATCTTCCCATAAAAACTAGACAGAAGGAATCTCAGAATCTTCTTTGGGATATA";
+    Q = "GAAGTGGACATTTGGAGCGCCTTGACACCTACGGTGAAAAGGGAAATATCTTCCCATAAAAACTAGACAGAAGCAATCTCAGAATCTTCTTTGGGATATA";
+
+    myBPED.setSequence(ref);
+    myBPED.initInTextValidation(4);
+
+    for (unsigned int i = 0; i < Q.size(); i++) {
+        myBPED.computeRow(i + 1, Q[i]);
+    }
+
+    myBPED.trackBack(Q, refBegin, refEnd, score, CIGAR);
+
+    cout << "Begin: " << refBegin << "\tEnd: " << refEnd << endl;
 
     cout << "Ref. seq.:\t" << ref.substr(refBegin, refEnd - refBegin) << "\nQuery seq.:\t" << Q << "\n";
     cout << "Edit distance score: " << score << endl;

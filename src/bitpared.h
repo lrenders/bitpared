@@ -18,14 +18,14 @@
 #ifndef BIT_PARALLEL_ED_H
 #define BIT_PARALLEL_ED_H
 
-#include <vector>
-#include <string>
+#include <algorithm>
 #include <array>
 #include <bitset>
 #include <cassert>
 #include <cmath>
-#include <algorithm>
 #include <iostream>
+#include <string>
+#include <vector>
 
 // ============================================================================
 // DEFINITIONS
@@ -33,39 +33,38 @@
 
 #define WORD_SIZE (64ull)
 #define BLOCK_SIZE (32ull)
-#define MAX_ED ((WORD_SIZE - BLOCK_SIZE - 2ull)/3ull)
-#define LEFT (2ull*MAX_ED + 1ull)
-#define DIAG_R0 (2ull*MAX_ED)
+#define MAX_ED ((WORD_SIZE - BLOCK_SIZE - 2ull) / 3ull)
+#define LEFT (2ull * MAX_ED + 1ull)
+#define DIAG_R0 (2ull * MAX_ED)
 
 // ============================================================================
 // TYPE DEFINITIONS
 // ============================================================================
 
 typedef struct {
-    uint64_t HP;    // bit vector to indicate which delta_H == +1
-    uint64_t HN;    // bit vector to indicate which delta_H == -1
-    uint64_t VP;    // bit vector to indicate which delta_V == +1
-    uint64_t VN;    // bit vector to indicate which delta_V == -1
-    uint64_t D0;    // bit vector to indicate which delta_D == 0
-    uint64_t RAC;   // bit vector to indicate the Rightmost Active Column
-                    // = rightmost column with a value <= maxED
-    uint64_t score; // minScore at the diagonal
+    uint64_t HP;     // bit vector to indicate which delta_H == +1
+    uint64_t HN;     // bit vector to indicate which delta_H == -1
+    uint64_t VP;     // bit vector to indicate which delta_V == +1
+    uint64_t VN;     // bit vector to indicate which delta_V == -1
+    uint64_t D0;     // bit vector to indicate which delta_D == 0
+    uint64_t RAC;    // bit vector to indicate the Rightmost Active Column
+                     // = rightmost column with a value <= maxED
+    uint64_t score;  // minScore at the diagonal
 } BitVectors;
 
 typedef struct {
-    uint64_t A;    // match vector to indicate occurrences of A in X
-    uint64_t C;    // match vector to indicate occurrences of C in X
-    uint64_t G;    // match vector to indicate occurrences of G in X
-    uint64_t T;    // match vector to indicate occurrences of T in X
+    uint64_t A;  // match vector to indicate occurrences of A in X
+    uint64_t C;  // match vector to indicate occurrences of C in X
+    uint64_t G;  // match vector to indicate occurrences of G in X
+    uint64_t T;  // match vector to indicate occurrences of T in X
 } MatchVectors;
 
 // ============================================================================
 // CLASS BIT-PARALLEL-ED MATRIX
 // ============================================================================
 
-class BitParallelED
-{
-public:
+class BitParallelED {
+   public:
     /**
      * Constructor
      */
@@ -83,38 +82,37 @@ public:
      * initializeMatrix(). You may call initializeMatrix() multiple times
      * (with different initialization settings) with a fixed sequence X.
      */
-    void setSequence(const std::string& X)
-    {
-        n = X.size() + 1;   // number of columns
-        m = 2*MAX_ED + n;   // this is an upper bound, the exact maxED
-                            // is specified during initializeMatrix()
+    void setSequence(const std::string& X) {
+        n = X.size() + 1;    // number of columns
+        m = 2 * MAX_ED + n;  // this is an upper bound, the exact maxED
+                             // is specified during initializeMatrix()
 
         // allocate and initialize the match vectors
         mv.resize((m + BLOCK_SIZE - 1) / BLOCK_SIZE);
 
         // encode the first block
         const uint64_t init = (1ull << LEFT) - 1;
-        mv[0] = { init, init, init, init };
+        mv[0] = {init, init, init, init};
         uint64_t bitmask = 1ull << LEFT;
         size_t je = std::min<size_t>(X.size(), WORD_SIZE - LEFT);
         for (size_t j = 0; j < je; j++) {
-            assert(char2idx[X[j]] < 4);             // assert ACTG alphabet
+            assert(char2idx[X[j]] < 4);  // assert ACTG alphabet
             mv[0][char2idx[X[j]]] |= bitmask;
             bitmask <<= 1;
         }
 
         // encode the remaining blocks
         for (size_t b = 1; b < mv.size(); b++) {
-            mv[b][0] = mv[b-1][0] >> BLOCK_SIZE;
-            mv[b][1] = mv[b-1][1] >> BLOCK_SIZE;
-            mv[b][2] = mv[b-1][2] >> BLOCK_SIZE;
-            mv[b][3] = mv[b-1][3] >> BLOCK_SIZE;
+            mv[b][0] = mv[b - 1][0] >> BLOCK_SIZE;
+            mv[b][1] = mv[b - 1][1] >> BLOCK_SIZE;
+            mv[b][2] = mv[b - 1][2] >> BLOCK_SIZE;
+            mv[b][3] = mv[b - 1][3] >> BLOCK_SIZE;
 
             bitmask = 1ull << (WORD_SIZE - BLOCK_SIZE);
-            size_t jb = WORD_SIZE - LEFT + (b-1)*BLOCK_SIZE;
+            size_t jb = WORD_SIZE - LEFT + (b - 1) * BLOCK_SIZE;
             size_t je = std::min<size_t>(X.size(), jb + BLOCK_SIZE);
             for (size_t j = jb; j < je; j++) {
-                assert(char2idx[X[j]] < 4);         // assert ACTG alphabet
+                assert(char2idx[X[j]] < 4);  // assert ACTG alphabet
                 mv[b][char2idx[X[j]]] |= bitmask;
                 bitmask <<= 1;
             }
@@ -126,8 +124,7 @@ public:
      * @param maxED Maximum edit distance allowed during alignment
      * @param initED Edit distances of column zero (default = 0, 1, ... maxED)
      */
-    void initializeMatrix(uint maxED, const std::vector<uint>& initED = {})
-    {
+    void initializeMatrix(uint maxED, const std::vector<uint>& initED = {}) {
         // make sure maxED is within supported range
         assert(maxED <= MAX_ED);
 
@@ -135,31 +132,31 @@ public:
         assert(initED.empty() || initED.front() <= maxED);
         assert(initED.empty() || initED.back() <= maxED);
 
-        this->maxED = maxED;                // store the maximum ED
-        Wv = (initED.empty()) ? maxED :     // vertical width of the band
-            initED.size() - 1 + maxED - initED.back();
+        this->maxED = maxED;             // store the maximum ED
+        Wv = (initED.empty()) ? maxED :  // vertical width of the band
+                 initED.size() - 1 + maxED - initED.back();
 
         // sanity check on the size of initED
-        assert(Wv <= 2*MAX_ED);
+        assert(Wv <= 2 * MAX_ED);
 
-        m = Wv + n;     // number of rows
+        m = Wv + n;  // number of rows
 
         // allocate and initialize bit vectors
         bv.resize(m);
         bv[0].score = initED.empty() ? 0 : initED[0];
-        Wh = maxED - bv[0].score;           // horizontal width of the band
+        Wh = maxED - bv[0].score;  // horizontal width of the band
 
         // initialize top row as [2*MAX_ED, ..., 2, 1, 0, 1, 2, ...]
         bv[0].HP = (~0ull) << LEFT;
         bv[0].HN = ~bv[0].HP;
 
         // correct top row if initED has been specified
-        for (size_t i = 1; i < std::min<size_t>(initED.size(), LEFT+1); i++) {
-            if (initED[i] < initED[i-1]) {
-                bv[0].HP ^= 1ull << (LEFT - i);    // set HP to 1
-                bv[0].HN ^= 1ull << (LEFT - i);    // set HN to 0
-            } else if (initED[i] == initED[i-1]) {
-                bv[0].HN ^= 1ull << (LEFT - i);    // set HN to 0
+        for (size_t i = 1; i < std::min<size_t>(initED.size(), LEFT + 1); i++) {
+            if (initED[i] < initED[i - 1]) {
+                bv[0].HP ^= 1ull << (LEFT - i);  // set HP to 1
+                bv[0].HN ^= 1ull << (LEFT - i);  // set HN to 0
+            } else if (initED[i] == initED[i - 1]) {
+                bv[0].HN ^= 1ull << (LEFT - i);  // set HN to 0
             }
         }
 
@@ -171,19 +168,18 @@ public:
      * Initialize the alignment matrix for in-text validation
      * @param maxED Maximum edit distance allowed during alignment
      */
-    void initInTextValidation(uint maxED)
-    {
+    void initInTextValidation(uint maxED) {
         // make sure maxED is within supported range
         assert(maxED <= MAX_ED);
 
-        this->maxED = maxED;            // store the maximum ED
-        Wv = maxED;                     // vertical width of the band
-        m = Wv + n;                     // number of rows
+        this->maxED = maxED;  // store the maximum ED
+        Wv = maxED;           // vertical width of the band
+        m = Wv + n;           // number of rows
 
         // allocate and initialize bit vectors
         bv.resize(m);
         bv[0].score = 0;
-        Wh = 2*maxED;                   // horizontal width of the band
+        Wh = 2 * maxED;  // horizontal width of the band
 
         // initialize top row as [2*MAX_ED, ..., 2, 1, 0, ..., 0, 1, 2,...]
         bv[0].HP = (~0ull) << (LEFT + maxED);
@@ -205,8 +201,8 @@ public:
         assert(char2idx[Y] < 4);
 
         // define BLOCK_SIZE as power of two to make sure this is fast:
-        const uint b = i / BLOCK_SIZE;      // block identifier
-        const uint l = i % BLOCK_SIZE;      // leftmost relevant bit
+        const uint b = i / BLOCK_SIZE;  // block identifier
+        const uint l = i % BLOCK_SIZE;  // leftmost relevant bit
 
         // aliases to the bit vectors of the current row i (will be computed)
         uint64_t& HP = bv[i].HP;
@@ -220,9 +216,9 @@ public:
         const uint64_t& M = mv[b][char2idx[Y]];
 
         // copy the input vectors pertaining the previous row i-1
-        HP = bv[i-1].HP;
-        HN = bv[i-1].HN;
-        RAC = bv[i-1].RAC << 1;
+        HP = bv[i - 1].HP;
+        HN = bv[i - 1].HN;
+        RAC = bv[i - 1].RAC << 1;
 
         // if we are entering a new block, shift input vectors to the right
         // so that they align with the current block
@@ -241,18 +237,15 @@ public:
 
         // compute the minScore at the diagonal
         const size_t diagBit = l + DIAG_R0;
-        bv[i].score = bv[i-1].score + (D0 & (1ull << diagBit) ? 0 : 1);
+        bv[i].score = bv[i - 1].score + (D0 & (1ull << diagBit) ? 0 : 1);
 
         // update the rightmost active column (Hyyro)
         if ((D0 & RAC) == 0) {
             size_t val = 1u;
             while (val > 0) {
-                if (HP & RAC)
-                    val--;
-                if (HN & RAC)
-                    val++;
-                if (RAC == (1ull << (diagBit - Wv)))
-                    return false;
+                if (HP & RAC) val--;
+                if (HN & RAC) val++;
+                if (RAC == (1ull << (diagBit - Wv))) return false;
                 RAC >>= 1;
             }
         }
@@ -266,8 +259,7 @@ public:
      * @param jMin Column index at which minimum value is found (output)
      * @param minScore Mimumum value (output)
      */
-    void findMinimumAtRow(uint i, uint& jMin, uint& minScore) const
-    {
+    void findMinimumAtRow(uint i, uint& jMin, uint& minScore) const {
         // assume the minimal value is found at the diagonal
         minScore = bv[i].score;
         jMin = i;
@@ -280,14 +272,14 @@ public:
             if (bv[i].HN & bit) thisScore++;
             if (thisScore < minScore) {
                 minScore = thisScore;
-                jMin = j-1;
+                jMin = j - 1;
             }
         }
 
         // check values to the right of the diagonal
         thisScore = bv[i].score;
         bit = 1ull << ((i % BLOCK_SIZE) + LEFT);
-        for (uint j = i+1; j <= getLastColumn(i); j++, bit <<= 1) {
+        for (uint j = i + 1; j <= getLastColumn(i); j++, bit <<= 1) {
             if (bv[i].HP & bit) thisScore++;
             if (bv[i].HN & bit) thisScore--;
             if (thisScore < minScore) {
@@ -305,14 +297,13 @@ public:
      * @param ED Edit distance score associated with this alignment (output)
      * @param CIGAR CIGAR string (output)
      */
-    void trackBack(const std::string& Q, uint& refBegin, uint& refEnd,
-                   uint& ED, std::vector<std::pair<char, uint> >& CIGAR) const
-    {
+    void trackBack(const std::string& Q, uint& refBegin, uint& refEnd, uint& ED,
+                   std::vector<std::pair<char, uint>>& CIGAR) const {
         // sanity check
         assert(Q.size() < m);
 
         CIGAR.clear();
-        CIGAR.reserve(2*MAX_ED+1);
+        CIGAR.reserve(2 * MAX_ED + 1);
 
         // find the mimimum ED score at the end of the query sequence
         uint i = (uint)Q.size();
@@ -321,23 +312,24 @@ public:
         // backtracking
         uint j = refEnd;
         while (i > 0) {
-            const uint b = i / BLOCK_SIZE;      // block identifier
-            const uint64_t& M = mv[b][char2idx[Q[i-1]]];
-            uint64_t bit = 1ull << ((j % BLOCK_SIZE) + DIAG_R0);
+            const uint b = i / BLOCK_SIZE;  // block identifier
+            const uint64_t& M = mv[b][char2idx[Q[i - 1]]];
+            uint64_t bit = 1ull << ((j - b * BLOCK_SIZE) + DIAG_R0);
 
-            if ((M | ~(M | bv[i].D0)) & bit) {  // diagonal
-                i--; j--;
+            if (j && ((M | ~(M | bv[i].D0)) & bit)) {  // diagonal
+                i--;
+                j--;
                 if (CIGAR.empty() || CIGAR.back().first != 'M')
                     CIGAR.push_back(std::make_pair('M', 1));
                 else
                     CIGAR.back().second++;
-            } else if (bv[i].HP & bit) {
+            } else if (j && (bv[i].HP & bit)) {  // horizontal gap
                 j--;
                 if (CIGAR.empty() || CIGAR.back().first != 'D')
                     CIGAR.push_back(std::make_pair('D', 1));
                 else
                     CIGAR.back().second++;
-            } else if (bv[i].VP & bit) {
+            } else if (bv[i].VP & bit) {  // vertical gap
                 i--;
                 if (CIGAR.empty() || CIGAR.back().first != 'I')
                     CIGAR.push_back(std::make_pair('I', 1));
@@ -357,18 +349,18 @@ public:
      * @return Score at position (i, j)
      */
     uint operator()(uint i, uint j) const {
-        assert(i < m);     // make sure i and j are within matrix bounds
+        assert(i < m);  // make sure i and j are within matrix bounds
         assert(j < n);
 
         uint score = bv[i].score;
         const uint bit = (i % BLOCK_SIZE) + DIAG_R0;
         if (i > j) {
-            for (uint o = 0; o < i-j; o++) {
+            for (uint o = 0; o < i - j; o++) {
                 score -= (bv[i].HP >> (bit - o)) & 1ull;
                 score += (bv[i].HN >> (bit - o)) & 1ull;
             }
         } else {
-            for (uint o = 1; o <= j-i; o++) {
+            for (uint o = 1; o <= j - i; o++) {
                 score += (bv[i].HP >> (bit + o)) & 1ull;
                 score -= (bv[i].HN >> (bit + o)) & 1ull;
             }
@@ -403,50 +395,38 @@ public:
      * @param i the row to fill in
      * @returns the first column to fill in
      */
-    uint getFirstColumn(uint i) const {
-        return (i <= Wv) ? 1u : i - Wv;
-    }
+    uint getFirstColumn(uint i) const { return (i <= Wv) ? 1u : i - Wv; }
 
     /**
      * Retrieves the last column index that needs to be filled in for the row
      * @param i the row to fill in
      * @returns the last column to fill in
      */
-    uint getLastColumn(uint i) const {
-        return std::min(n - 1, i + Wh);
-    }
+    uint getLastColumn(uint i) const { return std::min(n - 1, i + Wh); }
 
     /**
      * Get the number of columns in the matrix
      * @return The number of columns in the matrix (== X.size() + 1)
      */
-    uint getNumberOfCols() const {
-        return n;
-    }
+    uint getNumberOfCols() const { return n; }
 
     /**
      * Get the number of rows in the matrix
      * @return The number of rows in the matrix (== Y.size() + 1)
      */
-    uint getNumberOfRows() const {
-        return m;
-    }
+    uint getNumberOfRows() const { return m; }
 
     /**
      * Check whether setSequenceX() has been called
      * @return True or false
      */
-    bool sequenceSet() const {
-        return !mv.empty();
-    }
+    bool sequenceSet() const { return !mv.empty(); }
 
     /**
      * Get the vertical size of the final column
      * @return True or false
      */
-    uint getSizeOfFinalColumn() const {
-        return Wh + Wv + 1;
-    }
+    uint getSizeOfFinalColumn() const { return Wh + Wv + 1; }
 
     /**
      * Print the banded matrix
@@ -457,16 +437,12 @@ public:
             uint firstCol = (i <= Wv) ? 0u : getFirstColumn(i);
             uint lastCol = getLastColumn(i);
             std::cout << (i < 10 ? "0" : "") << std::to_string(i);
-            std::cout << " [" << getFirstColumn(i) << ","
-                      << getLastColumn(i) << "]\t";
+            std::cout << " [" << getFirstColumn(i) << "," << getLastColumn(i) << "]\t";
 
-            for (uint j = 0; j < firstCol; j++)
-                std::cout << "  ";
-            for (uint j = firstCol; j <= lastCol; j++)
-                std::cout << operator()(i, j) << " ";
+            for (uint j = 0; j < firstCol; j++) std::cout << "  ";
+            for (uint j = firstCol; j <= lastCol; j++) std::cout << operator()(i, j) << " ";
 
-            std::cout << "\tRAC:" << -(int)Wv + (int)i << "/"
-                      << std::log2(bv[i].RAC)-DIAG_R0;
+            std::cout << "\tRAC:" << -(int)Wv + (int)i << "/" << std::log2(bv[i].RAC) - DIAG_R0;
             std::cout << (onlyVerticalGapsLeft(i) ? " - true" : " - false");
             uint minScore, minJ;
             findMinimumAtRow(i, minJ, minScore);
@@ -475,17 +451,17 @@ public:
         }
     }
 
-private:
+   private:
     std::vector<char> char2idx;
 
-    uint maxED;             // maximum allowed edit distance
-    uint m;                 // number of rows
-    uint n;                 // number of columns
-    uint Wv;                // vertical width of the band
-    uint Wh;                // horizontal width of the band
+    uint maxED;  // maximum allowed edit distance
+    uint m;      // number of rows
+    uint n;      // number of columns
+    uint Wv;     // vertical width of the band
+    uint Wh;     // horizontal width of the band
 
-    std::vector<BitVectors> bv;                 // bit vectors
-    std::vector<std::array<uint64_t, 4>> mv;    // match vectors
+    std::vector<BitVectors> bv;               // bit vectors
+    std::vector<std::array<uint64_t, 4>> mv;  // match vectors
 };
 
 #endif
